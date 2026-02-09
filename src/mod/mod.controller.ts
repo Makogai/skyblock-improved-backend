@@ -124,6 +124,39 @@ export class ModController {
     return { ok: true };
   }
 
+  @Get('skycrypt/networth/:playerName')
+  async getSkyCryptNetworth(@Param('playerName') playerName: string) {
+    const name = (playerName ?? '').trim();
+    if (!name) return { networth: null };
+    try {
+      const res = await fetch(
+        `https://sky.shiiyu.moe/api/v2/profile/${encodeURIComponent(name)}`,
+        { headers: { 'User-Agent': 'SkyblockImproved-Admin/1.0' }, signal: AbortSignal.timeout(8000) },
+      );
+      if (!res.ok) return { networth: null };
+      const data = (await res.json()) as Record<string, unknown>;
+      const toNum = (v: unknown): number | null => {
+        if (typeof v === 'number' && !Number.isNaN(v) && v >= 0) return v;
+        if (typeof v === 'string') {
+          const n = parseFloat(v);
+          return !Number.isNaN(n) && n >= 0 ? n : null;
+        }
+        return null;
+      };
+      let networth = toNum(data?.networth ?? data?.net_worth);
+      if (networth == null) {
+        const profiles = data?.profiles as Array<Record<string, unknown>> | undefined;
+        const selected = profiles?.find((p: Record<string, unknown>) => p.selected) ?? profiles?.[0];
+        const sel = selected as Record<string, unknown> | undefined;
+        const selData = sel?.data as Record<string, unknown> | undefined;
+        networth = toNum(sel?.networth ?? sel?.net_worth ?? selData?.networth);
+      }
+      return { networth };
+    } catch {
+      return { networth: null };
+    }
+  }
+
   @Get('screenshots/:playerName')
   getScreenshot(@Param('playerName') playerName: string, @Res() res: Response) {
     const entry = this.mod.getScreenshot(playerName);
