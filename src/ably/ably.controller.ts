@@ -17,6 +17,7 @@ export class AblyController {
     const result = await this.ably.createToken({
       capability: {
         'skyblock:players': ['subscribe', 'presence', 'history'],
+        'skyblock:screenshots': ['subscribe', 'history'],
       },
     });
     if (!result) throw new Error('Ably not configured');

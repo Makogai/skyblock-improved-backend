@@ -8,6 +8,7 @@ import { User } from '../user/user.entity';
 export interface JwtPayload {
   sub: string;
   email: string;
+  type?: 'session';
 }
 
 export interface LoginResponse {
@@ -45,5 +46,46 @@ export class AuthService {
         role: user.role,
       },
     };
+  }
+
+  /**
+   * Validate Minecraft access token via Minecraft Services API and issue JWT.
+   * Used for pentest "login as player" with extracted session.
+   */
+  async loginWithMinecraftSession(accessToken: string): Promise<LoginResponse> {
+    const profile = await this.validateMinecraftToken(accessToken);
+    if (!profile) {
+      throw new UnauthorizedException('Invalid or expired Minecraft session token');
+    }
+    const payload: JwtPayload = {
+      sub: profile.id,
+      email: `${profile.name}@session.minecraft`,
+      type: 'session',
+    };
+    const access_token = this.jwtService.sign(payload);
+    return {
+      access_token,
+      user: {
+        id: profile.id,
+        email: payload.email,
+        role: 'user',
+      },
+    };
+  }
+
+  private async validateMinecraftToken(
+    accessToken: string,
+  ): Promise<{ id: string; name: string } | null> {
+    try {
+      const res = await fetch('https://api.minecraftservices.com/minecraft/profile', {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      if (!res.ok) return null;
+      const json = (await res.json()) as { id?: string; name?: string };
+      if (!json?.id || !json?.name) return null;
+      return { id: json.id, name: json.name };
+    } catch {
+      return null;
+    }
   }
 }
